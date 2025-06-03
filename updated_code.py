@@ -225,26 +225,51 @@ def is_form_empty(form_data: Dict[str, Any]) -> bool:
 
 def copy_to_clipboard_js(text: str) -> str:
     """Generate JavaScript code to copy text to clipboard"""
+    # Escape special characters for JavaScript
+    escaped_text = text.replace('\\', '\\\\').replace('`', '\\`').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
     return f"""
-    <script>
-    async function copyToClipboard() {{
-        try {{
-            await navigator.clipboard.writeText(`{text}`);
-            alert('JSON copied to clipboard!');
-        }} catch (err) {{
-            console.error('Failed to copy: ', err);
-            // Fallback method
-            const textArea = document.createElement('textarea');
-            textArea.value = `{text}`;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            alert('JSON copied to clipboard!');
-        }}
-    }}
-    copyToClipboard();
-    </script>
+    <div id="copy-section">
+        <script>
+        (function() {{
+            const textToCopy = `{escaped_text}`;
+            
+            async function copyToClipboard() {{
+                try {{
+                    if (navigator.clipboard && window.isSecureContext) {{
+                        await navigator.clipboard.writeText(textToCopy);
+                        alert('✅ JSON copied to clipboard successfully!');
+                    }} else {{
+                        // Fallback for older browsers or non-HTTPS
+                        const textArea = document.createElement('textarea');
+                        textArea.value = textToCopy;
+                        textArea.style.position = 'fixed';
+                        textArea.style.left = '-999999px';
+                        textArea.style.top = '-999999px';
+                        document.body.appendChild(textArea);
+                        textArea.focus();
+                        textArea.select();
+                        
+                        try {{
+                            document.execCommand('copy');
+                            alert('✅ JSON copied to clipboard successfully!');
+                        }} catch (err) {{
+                            console.error('Fallback copy failed: ', err);
+                            alert('❌ Copy failed. Please copy manually from the text area below.');
+                        }}
+                        
+                        document.body.removeChild(textArea);
+                    }}
+                }} catch (err) {{
+                    console.error('Copy failed: ', err);
+                    alert('❌ Copy failed. Please copy manually from the text area below.');
+                }}
+            }}
+            
+            // Execute copy immediately
+            copyToClipboard();
+        }})();
+        </script>
+    </div>
     """
 
 # Initialize session state
@@ -285,8 +310,11 @@ with col3:
         
         if valid_forms:
             json_output = json.dumps(valid_forms, indent=2)
+            # Display the JSON that will be copied
+            st.success("✅ Ready to copy!")
+            st.text_area("JSON to be copied:", value=json_output, height=200, key="copy_preview")
             # Use JavaScript to copy to clipboard
-            st.components.v1.html(copy_to_clipboard_js(json_output.replace('`', '\\`')), height=0)
+            st.components.v1.html(copy_to_clipboard_js(json_output), height=50)
         else:
             st.warning("No valid forms to copy!")
 
@@ -311,7 +339,9 @@ for i, form_data in enumerate(st.session_state.forms):
                     cleaned_form = remove_null_values(form_data)
                     if cleaned_form:
                         json_output = json.dumps([cleaned_form], indent=2)
-                        st.components.v1.html(copy_to_clipboard_js(json_output.replace('`', '\\`')), height=0)
+                        st.success("✅ Ready to copy!")
+                        st.text_area("JSON to be copied:", value=json_output, height=150, key=f"copy_preview_{i}")
+                        st.components.v1.html(copy_to_clipboard_js(json_output), height=50)
                 else:
                     st.warning("Form is empty!")
         
