@@ -2,13 +2,55 @@ import streamlit as st
 import json
 import copy
 from typing import Dict, List, Any, Union
+import pandas as pd
 
 # Page configuration
 st.set_page_config(
-    page_title="JSON Test Case Editor - Fixed",
+    page_title="JSON Test Case Editor - Enhanced",
     page_icon="🧪",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
+
+# Default test case template
+DEFAULT_TEST_CASE = {
+    "mhm": {
+        "age": 25, "hgt": 185, "wgt": 77, "sex": 1, "dbp": 78, "map": 85, "sbp": 118,
+        "fat": 20, "ppr": 40, "rhr": 70, "rhr_day": [70], "spo2": 99, "vo2max": 59.5,
+        "whr": 0.8, "wst": 80, "alc": 80, "cst": 80, "exh": 80, "fCV": 80, "fDM": 80,
+        "fMI": 80, "pHT": 80, "a1c": 80, "acr": 80, "cre": 80, "crp": 80, "cys": 80,
+        "fbg": 80, "eag": 80, "gfr": 80, "hdl": 80, "ldl": 80, "tgl": 80, "tsc": 80,
+        "vdl": 80, "CAN": 0, "CHD": 0, "CHF": 0, "CKD": 0, "CVD": 0, "DM2": 1,
+        "HTN": 0, "LDS": 0, "LVH": 0, "PDM": 0, "PMI": 0, "STK": 0, "TDM": 0, "THT": 0
+    },
+    "smk": {"now": 0, "evr": 0, "yrs": 0, "num": 0, "qit": 0, "slt": 0},
+    "slp": {"bed": [8.5], "slp": [8.0], "awk": [1], "slp_avg": [8]},
+    "nut": {
+        "nqs01": 0.5, "nqs02": 0.5, "nqs03": 0.5, "nqs04": 0.5, "nqs05": 0.5,
+        "nqs06": 0.5, "nqs07": 0.5, "nqs08": 0.5, "nqs09": 0.5, "nqs10": 0.5,
+        "nqs11": 0.5, "nqs12": 0.5, "nqs13": 0.5, "nqs14": 0.5, "nqs15": 0.5,
+        "nqs16": 0.5, "nqs17": 0.5, "nqs18": 0.5, "nqs19": 0.5, "nqs20": 0.5,
+        "nqs21": 0.5, "nqs22": 0.5, "protein": 0.5, "sfat": 0.5, "sugar": 0.5,
+        "fiber": 0.5, "sodium": 0.5, "vitamin_c": 0.5, "iron": 0.5,
+        "percentage_drink": 0.5, "density_drink": 0.5
+    },
+    "qlm": {
+        "q01": 0.5, "q02": 0.5, "q03": 0.5, "q04": 0.5, "q05": 0.5, "q06": 0.5,
+        "q07": 0.5, "q08": 0.5, "q09": 0.5, "q10": 0.5, "q11": 0.5, "q12": 0.5,
+        "q13": 0.5, "q14": 0.5, "q15": 0.5, "q16": 0.5, "q17": 0.5, "q18": 0.5,
+        "q19": 0.5, "q20": 0.5, "q21": 0.5, "q22": 0.5, "q23": 0.5, "q24": 0.5,
+        "q25": 0.5, "q26": 0.5, "q27": 0.5, "gad01": 0.5, "gad02": 0.5, "gad03": 0.5,
+        "gad04": 0.5, "gad05": 0.5, "gad06": 0.5, "gad07": 0.5, "phq01": 0.5,
+        "phq02": 0.5, "phq03": 0.5, "phq04": 0.5, "phq05": 0.5, "phq06": 0.5,
+        "phq07": 0.5, "phq08": 0.5, "phq09": 0.5, "pss01": 0.5, "pss02": 0.5,
+        "pss03": 0.5, "pss04": 0.5, "pss05": 0.5, "pss06": 0.5, "pss07": 0.5,
+        "pss08": 0.5, "pss09": 0.5, "pss10": 0.5, "gsrh": 0.5, "maas01": 0.5,
+        "maas02": 0.5, "maas03": 0.5, "maas04": 0.5, "maas05": 0.5, "maas06": 0.5,
+        "maas07": 0.5, "maas08": 0.5, "maas09": 0.5, "maas10": 0.5, "maas11": 0.5,
+        "maas12": 0.5, "maas13": 0.5, "maas14": 0.5, "maas15": 0.5, "mfm": [0.5]
+    },
+    "clip": False
+}
 
 def create_blank_structure(template: Dict) -> Dict:
     """Create a blank structure with same keys but empty/null values"""
@@ -59,25 +101,61 @@ def is_entirely_blank(obj: Dict) -> bool:
     cleaned = clean_dict(obj)
     return len(cleaned) == 0
 
-def validate_json_string(json_str: str) -> tuple[bool, str, Any]:
-    """Validate and parse JSON string"""
+def validate_json(json_string: str) -> tuple[bool, str, Any]:
+    """Validate JSON string and return validation result"""
     try:
-        if not json_str.strip():
+        if not json_string.strip():
             return False, "Empty JSON", None
-        parsed = json.loads(json_str)
-        return True, "Valid", parsed
+        parsed = json.loads(json_string)
+        return True, "Valid JSON", parsed
     except json.JSONDecodeError as e:
         return False, f"Invalid JSON: {str(e)}", None
+
+def flatten_dict(d: Dict, parent_key: str = '', sep: str = '.') -> Dict:
+    """Flatten nested dictionary for display"""
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        elif isinstance(v, list):
+            items.append((new_key, str(v)))
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+def unflatten_dict(flat_dict: Dict, sep: str = '.') -> Dict:
+    """Convert flattened dictionary back to nested structure"""
+    result = {}
+    for key, value in flat_dict.items():
+        parts = key.split(sep)
+        d = result
+        for part in parts[:-1]:
+            if part not in d:
+                d[part] = {}
+            d = d[part]
+        
+        # Handle list values
+        if isinstance(value, str) and value.startswith('[') and value.endswith(']'):
+            try:
+                d[parts[-1]] = json.loads(value)
+            except:
+                d[parts[-1]] = value
+        else:
+            d[parts[-1]] = value
+    return result
 
 # Initialize session state
 if 'test_cases' not in st.session_state:
     st.session_state.test_cases = []
 if 'edited_cases' not in st.session_state:
     st.session_state.edited_cases = {}
+if 'field_updates' not in st.session_state:
+    st.session_state.field_updates = {}
 
-# Title
-st.title("🧪 JSON Test Case Editor - Fixed Version")
-st.markdown("**Fixed Issues:** ✅ Edited JSON reflected in output ✅ Blank duplicates & clean export")
+# Main UI
+st.title("🧪 JSON Test Case Editor - Enhanced Version")
+st.markdown("**Features:** ✅ Multi-editor support ✅ Auto clipboard copy ✅ Clean export ✅ Blank duplicates")
 st.markdown("---")
 
 # Sidebar for data input
@@ -92,7 +170,7 @@ with st.sidebar:
     st.subheader("Or Paste JSON")
     json_input = st.text_area(
         "Paste JSON array here", 
-        height=200, 
+        height=150, 
         placeholder='[\n  {\n    "key": "value"\n  }\n]'
     )
     
@@ -109,7 +187,7 @@ with st.sidebar:
                 st.error(f"❌ Error reading file: {e}")
         
         elif json_input.strip():
-            is_valid, message, parsed_data = validate_json_string(json_input.strip())
+            is_valid, message, parsed_data = validate_json(json_input.strip())
             if is_valid:
                 json_data = parsed_data
                 source = "pasted text"
@@ -127,198 +205,246 @@ with st.sidebar:
                 st.session_state.edited_cases = {
                     i: json.dumps(case, indent=2) for i, case in enumerate(json_data)
                 }
+                st.session_state.field_updates = {}
                 st.success(f"✅ Loaded {len(json_data)} test cases from {source}")
             else:
                 st.session_state.test_cases = [json_data]
                 st.session_state.edited_cases = {0: json.dumps(json_data, indent=2)}
+                st.session_state.field_updates = {}
                 st.success(f"✅ Loaded 1 test case from {source}")
             
             # Clear the input after successful load
             if source == "pasted text":
                 st.rerun()
-
-# Main content
-if st.session_state.test_cases:
-    st.header(f"📊 Test Cases ({len(st.session_state.test_cases)} total)")
     
-    # Action buttons
-    col1, col2, col3 = st.columns([1, 1, 2])
+    st.markdown("---")
     
-    with col1:
-        if st.button("📄 Add Blank Row"):
-            if st.session_state.test_cases:
-                # Create blank structure based on first test case
-                template = st.session_state.test_cases[0]
-                blank_case = create_blank_structure(template)
-            else:
-                blank_case = {}
-            
+    # Add new test cases
+    st.header("➕ Add Test Cases")
+    num_cases = st.number_input("Number of cases to add", min_value=1, max_value=10, value=1)
+    
+    if st.button("Add Default Cases"):
+        for _ in range(num_cases):
+            new_index = len(st.session_state.test_cases)
+            st.session_state.test_cases.append(DEFAULT_TEST_CASE.copy())
+            st.session_state.edited_cases[new_index] = json.dumps(DEFAULT_TEST_CASE, indent=2)
+        st.success(f"✅ Added {num_cases} default test case(s)")
+        st.rerun()
+    
+    if st.button("Add Blank Cases"):
+        template = DEFAULT_TEST_CASE if not st.session_state.test_cases else st.session_state.test_cases[0]
+        for _ in range(num_cases):
+            blank_case = create_blank_structure(template)
             new_index = len(st.session_state.test_cases)
             st.session_state.test_cases.append(blank_case)
             st.session_state.edited_cases[new_index] = json.dumps(blank_case, indent=2)
-            st.rerun()
+        st.success(f"✅ Added {num_cases} blank test case(s)")
+        st.rerun()
+
+# Main content area
+if st.session_state.test_cases:
+    st.header(f"📊 Test Cases ({len(st.session_state.test_cases)} total)")
+    
+    # Export buttons
+    col1, col2, col3 = st.columns([1, 1, 2])
+    
+    # Process all edited cases for export
+    final_cases = []
+    validation_errors = []
+    
+    for i in range(len(st.session_state.test_cases)):
+        # Get the latest data from either JSON editor or field updates
+        if i in st.session_state.field_updates:
+            # Use field updates if available
+            test_case_data = st.session_state.field_updates[i]
+        elif i in st.session_state.edited_cases:
+            # Parse from JSON editor
+            is_valid, message, parsed_data = validate_json(st.session_state.edited_cases[i])
+            if is_valid and parsed_data is not None:
+                test_case_data = parsed_data
+            else:
+                validation_errors.append(f"Test Case {i+1}: {message}")
+                continue
+        else:
+            # Use original data
+            test_case_data = st.session_state.test_cases[i]
+        
+        # Clean the data (remove empty fields)
+        cleaned_case = clean_dict(test_case_data)
+        
+        # Only include non-blank cases
+        if not is_entirely_blank(test_case_data):
+            final_cases.append(cleaned_case)
+    
+    with col1:
+        if st.button("📋 Copy to Clipboard", help="Automatically copy JSON to clipboard"):
+            if final_cases:
+                final_json = json.dumps(final_cases, indent=2)
+                # Use Streamlit's built-in clipboard functionality
+                st.write("🎯 **JSON copied to clipboard!**")
+                st.code(final_json, language='json')
+                # JavaScript to copy to clipboard
+                st.components.v1.html(f"""
+                <script>
+                navigator.clipboard.writeText(`{final_json.replace('`', '\\`')}`).then(function() {{
+                    console.log('JSON copied to clipboard successfully!');
+                }}, function(err) {{
+                    console.error('Could not copy text: ', err);
+                }});
+                </script>
+                """, height=0)
+                st.success("✅ JSON automatically copied to clipboard!")
+            else:
+                st.warning("⚠️ No valid test cases to copy")
     
     with col2:
-        if st.button("🗑️ Clear All"):
-            st.session_state.test_cases = []
-            st.session_state.edited_cases = {}
-            st.rerun()
+        if final_cases:
+            final_json = json.dumps(final_cases, indent=2)
+            st.download_button(
+                label="💾 Download JSON",
+                data=final_json,
+                file_name="test_cases.json",
+                mime="application/json"
+            )
+    
+    with col3:
+        if validation_errors:
+            st.error(f"⚠️ {len(validation_errors)} validation errors")
+        st.write(f"📊 **Export:** {len(final_cases)} valid cases")
     
     st.markdown("---")
     
     # Display and edit test cases
-    for i, original_case in enumerate(st.session_state.test_cases):
+    for i, test_case in enumerate(st.session_state.test_cases):
         with st.expander(f"🧪 Test Case {i+1}", expanded=(i == 0)):
+            col1, col2, col3 = st.columns([3, 1, 1])
             
-            # Action buttons for each row
-            col1, col2, col3 = st.columns([1, 1, 2])
-            
-            with col1:
+            with col2:
                 if st.button(f"📄 Duplicate as Blank", key=f"dup_{i}"):
-                    blank_case = create_blank_structure(original_case)
+                    blank_case = create_blank_structure(test_case)
                     new_index = len(st.session_state.test_cases)
                     st.session_state.test_cases.append(blank_case)
                     st.session_state.edited_cases[new_index] = json.dumps(blank_case, indent=2)
                     st.rerun()
             
-            with col2:
-                if st.button(f"🗑️ Delete", key=f"del_{i}"):
+            with col3:
+                if st.button(f"🗑️ Delete", key=f"del_{i}", type="secondary"):
                     st.session_state.test_cases.pop(i)
-                    # Reindex edited_cases
-                    new_edited = {}
-                    for idx, case in enumerate(st.session_state.test_cases):
-                        if idx < i and idx in st.session_state.edited_cases:
-                            new_edited[idx] = st.session_state.edited_cases[idx]
-                        elif idx >= i and (idx + 1) in st.session_state.edited_cases:
-                            new_edited[idx] = st.session_state.edited_cases[idx + 1]
-                        else:
-                            new_edited[idx] = json.dumps(case, indent=2)
-                    st.session_state.edited_cases = new_edited
+                    # Clean up session state
+                    if i in st.session_state.edited_cases:
+                        del st.session_state.edited_cases[i]
+                    if i in st.session_state.field_updates:
+                        del st.session_state.field_updates[i]
                     st.rerun()
             
-            # JSON Editor
-            if i not in st.session_state.edited_cases:
-                st.session_state.edited_cases[i] = json.dumps(original_case, indent=2)
+            # Create tabs for different editors
+            tab1, tab2 = st.tabs(["📝 JSON Editor", "🎛️ Field Editor"])
             
-            edited_json = st.text_area(
-                f"Edit JSON for Test Case {i+1}",
-                value=st.session_state.edited_cases[i],
-                height=300,
-                key=f"json_editor_{i}"
-            )
-            
-            # Update the edited_cases when text area changes
-            if edited_json != st.session_state.edited_cases[i]:
-                st.session_state.edited_cases[i] = edited_json
-            
-            # Validate current JSON
-            is_valid, message, parsed_data = validate_json_string(edited_json)
-            
-            if is_valid:
-                st.success("✅ Valid JSON")
-            else:
-                st.error(f"❌ {message}")
-    
-    st.markdown("---")
-    
-    # Export section
-    st.header("📤 Export")
-    
-    # Process all edited cases
-    final_cases = []
-    validation_errors = []
-    
-    for i, edited_json in st.session_state.edited_cases.items():
-        if i < len(st.session_state.test_cases):  # Make sure index is valid
-            is_valid, message, parsed_data = validate_json_string(edited_json)
-            
-            if is_valid and parsed_data is not None:
-                # Clean the data (remove empty fields)
-                cleaned_case = clean_dict(parsed_data)
+            with tab1:
+                # JSON Editor
+                if i not in st.session_state.edited_cases:
+                    st.session_state.edited_cases[i] = json.dumps(test_case, indent=2)
                 
-                # Only include non-blank cases
-                if not is_entirely_blank(parsed_data):
-                    final_cases.append(cleaned_case)
-            else:
-                validation_errors.append(f"Test Case {i+1}: {message}")
-    
-    # Show validation errors if any
-    if validation_errors:
-        st.error("❌ **Validation Errors:**")
-        for error in validation_errors:
-            st.error(f"• {error}")
-    
-    # Export buttons and preview
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.subheader(f"📊 Final Output ({len(final_cases)} cases)")
-        if final_cases:
-            final_json = json.dumps(final_cases, indent=2)
+                edited_json = st.text_area(
+                    "Edit JSON",
+                    value=st.session_state.edited_cases[i],
+                    height=300,
+                    key=f"json_editor_{i}"
+                )
+                
+                # Update the edited_cases when text area changes
+                if edited_json != st.session_state.edited_cases[i]:
+                    st.session_state.edited_cases[i] = edited_json
+                
+                # Validate and save
+                is_valid, message, parsed_json = validate_json(edited_json)
+                
+                if is_valid:
+                    st.success("✅ Valid JSON")
+                    if st.button(f"💾 Save JSON Changes", key=f"save_json_{i}"):
+                        st.session_state.test_cases[i] = parsed_json
+                        # Clear field updates for this case
+                        if i in st.session_state.field_updates:
+                            del st.session_state.field_updates[i]
+                        st.success("✅ JSON changes saved!")
+                        st.rerun()
+                else:
+                    st.error(f"❌ {message}")
             
-            # Copy to clipboard button
-            if st.button("📋 Copy to Clipboard", type="primary"):
-                st.success("✅ **JSON ready to copy below:**")
-                st.code(final_json, language='json')
-                st.info("💡 Select all text above and copy (Ctrl+A, Ctrl+C)")
-        else:
-            st.warning("⚠️ No valid test cases to export")
-    
-    with col2:
-        st.subheader("📥 Download")
-        if final_cases:
-            final_json = json.dumps(final_cases, indent=2)
-            st.download_button(
-                label="💾 Download JSON File",
-                data=final_json,
-                file_name="cleaned_test_cases.json",
-                mime="application/json"
-            )
-        
-        # Statistics
-        st.markdown("**Statistics:**")
-        st.write(f"• Original cases: {len(st.session_state.test_cases)}")
-        st.write(f"• Valid cases: {len(final_cases)}")
-        st.write(f"• Validation errors: {len(validation_errors)}")
+            with tab2:
+                # Field Editor
+                if test_case:
+                    # Flatten the JSON for easier editing
+                    flat_data = flatten_dict(test_case)
+                    
+                    # Group by main categories
+                    categories = {}
+                    for key, value in flat_data.items():
+                        category = key.split('.')[0] if '.' in key else 'root'
+                        if category not in categories:
+                            categories[category] = {}
+                        categories[category][key] = value
+                    
+                    # Create tabs for each category
+                    if categories:
+                        cat_tabs = st.tabs(list(categories.keys()))
+                        updated_data = {}
+                        
+                        for tab, (cat_name, cat_data) in zip(cat_tabs, categories.items()):
+                            with tab:
+                                cols = st.columns(2)
+                                for idx, (field_key, field_value) in enumerate(cat_data.items()):
+                                    col = cols[idx % 2]
+                                    with col:
+                                        # Determine input type based on value
+                                        if isinstance(field_value, bool):
+                                            updated_data[field_key] = st.checkbox(
+                                                field_key, value=field_value, key=f"field_{i}_{field_key}"
+                                            )
+                                        elif isinstance(field_value, (int, float)):
+                                            updated_data[field_key] = st.number_input(
+                                                field_key, value=field_value, key=f"field_{i}_{field_key}"
+                                            )
+                                        else:
+                                            updated_data[field_key] = st.text_input(
+                                                field_key, value=str(field_value), key=f"field_{i}_{field_key}"
+                                            )
+                        
+                        # Update button for field editor
+                        if st.button(f"🔄 Save Field Changes", key=f"update_fields_{i}"):
+                            # Convert flattened data back to nested structure
+                            updated_case = unflatten_dict(updated_data)
+                            st.session_state.field_updates[i] = updated_case
+                            st.session_state.test_cases[i] = updated_case
+                            # Update JSON editor too
+                            st.session_state.edited_cases[i] = json.dumps(updated_case, indent=2)
+                            st.success("✅ Field changes saved!")
+                            st.rerun()
+            
+            st.markdown("---")
 
 else:
     # Welcome screen
     st.info("👋 **Welcome!** Please upload a JSON file or paste JSON data using the sidebar to get started.")
     
-    st.subheader("✅ **Fixed Issues:**")
+    st.subheader("✨ **Enhanced Features:**")
     st.markdown("""
-    1. **Edited JSON Reflection**: Changes in text areas are now properly captured and used in the final output
-    2. **Blank Duplicates**: Duplicated rows now start with blank/null values while keeping the same structure
-    3. **Clean Export**: 
-       - Empty fields are excluded from the final JSON
-       - Entirely blank rows are excluded
-       - Only valid JSON is included in the export
+    - **📝 Dual Editors**: JSON text editor + interactive field editor with categories
+    - **📋 Auto Clipboard**: One-click copying with automatic clipboard functionality
+    - **🎯 Smart Export**: Removes empty fields and blank rows automatically
+    - **📄 Blank Duplicates**: Creates empty templates maintaining structure
+    - **🔄 Real-time Sync**: Changes sync between JSON and field editors
+    - **✅ Validation**: Live JSON validation with detailed error messages
     """)
     
     st.subheader("🚀 **How to Use:**")
     st.markdown("""
-    1. **Load Data**: Upload a JSON file OR paste JSON data in the sidebar, then click "Load JSON"
-    2. **Edit** test cases using the text areas (changes are automatically tracked)
-    3. **Duplicate** rows as blank templates or **add** new blank rows
-    4. **Export** cleaned JSON with the "Copy to Clipboard" button
+    1. **Load Data**: Upload JSON file OR paste JSON data, then click "Load JSON"
+    2. **Edit**: Use either the JSON editor (raw text) or Field editor (form-based)
+    3. **Duplicate**: Create blank copies using "Duplicate as Blank"
+    4. **Export**: Click "Copy to Clipboard" for automatic copying or download JSON
     """)
-    
-    st.subheader("📋 **JSON Format Example:**")
-    st.code('''[
-  {
-    "mhm": {
-      "age": 25,
-      "hgt": 185,
-      "wgt": 77
-    },
-    "smk": {
-      "now": 0,
-      "evr": 0
-    },
-    "clip": false
-  }
-]''', language='json')
 
 # Footer
 st.markdown("---")
-st.markdown("🔧 **Fixed Version** - Issues resolved: JSON reflection & clean export")
+st.markdown("🚀 **Enhanced Version** - Combined best features with automatic clipboard copying")
