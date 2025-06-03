@@ -192,14 +192,31 @@ def remove_null_values(data: Any) -> Any:
         cleaned = {}
         for key, value in data.items():
             cleaned_value = remove_null_values(value)
-            if cleaned_value is not None and cleaned_value != [] and cleaned_value != {}:
+            # Only include non-null, non-empty values
+            if (cleaned_value is not None and 
+                cleaned_value != [] and 
+                cleaned_value != {} and 
+                cleaned_value != "" and
+                str(cleaned_value).lower() != "null"):
                 cleaned[key] = cleaned_value
         return cleaned if cleaned else None
     elif isinstance(data, list):
-        cleaned = [remove_null_values(item) for item in data if item is not None]
+        cleaned = []
+        for item in data:
+            cleaned_item = remove_null_values(item)
+            # Only include non-null, non-empty items
+            if (cleaned_item is not None and 
+                cleaned_item != "" and 
+                str(cleaned_item).lower() != "null"):
+                cleaned.append(cleaned_item)
         return cleaned if cleaned else None
     else:
-        return data if data is not None else None
+        # Return None for null, None, empty string, or "null" string values
+        if (data is None or 
+            data == "" or 
+            str(data).lower() == "null"):
+            return None
+        return data
 
 def is_form_empty(form_data: Dict[str, Any]) -> bool:
     """Check if a form is completely empty (all values are null/None/empty)"""
