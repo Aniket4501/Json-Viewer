@@ -80,27 +80,62 @@ st.title("🧪 JSON Test Case Editor - Fixed Version")
 st.markdown("**Fixed Issues:** ✅ Edited JSON reflected in output ✅ Blank duplicates & clean export")
 st.markdown("---")
 
-# Sidebar for file upload
+# Sidebar for data input
 with st.sidebar:
-    st.header("📁 Upload JSON")
+    st.header("📁 Load JSON Data")
+    
+    # Option 1: File upload
+    st.subheader("Upload File")
     uploaded_file = st.file_uploader("Choose JSON file", type=['json'])
     
-    if uploaded_file:
-        try:
-            json_data = json.load(uploaded_file)
+    # Option 2: Paste JSON
+    st.subheader("Or Paste JSON")
+    json_input = st.text_area(
+        "Paste JSON array here", 
+        height=200, 
+        placeholder='[\n  {\n    "key": "value"\n  }\n]'
+    )
+    
+    # Load button
+    if st.button("🚀 Load JSON", type="primary"):
+        json_data = None
+        
+        # Try file first, then pasted text
+        if uploaded_file:
+            try:
+                json_data = json.load(uploaded_file)
+                source = "file"
+            except Exception as e:
+                st.error(f"❌ Error reading file: {e}")
+        
+        elif json_input.strip():
+            is_valid, message, parsed_data = validate_json_string(json_input.strip())
+            if is_valid:
+                json_data = parsed_data
+                source = "pasted text"
+            else:
+                st.error(f"❌ {message}")
+        
+        else:
+            st.warning("⚠️ Please upload a file or paste JSON data")
+        
+        # Process the loaded data
+        if json_data:
             if isinstance(json_data, list):
                 st.session_state.test_cases = json_data
                 # Initialize edited cases with original data
                 st.session_state.edited_cases = {
                     i: json.dumps(case, indent=2) for i, case in enumerate(json_data)
                 }
-                st.success(f"✅ Loaded {len(json_data)} test cases")
+                st.success(f"✅ Loaded {len(json_data)} test cases from {source}")
             else:
                 st.session_state.test_cases = [json_data]
                 st.session_state.edited_cases = {0: json.dumps(json_data, indent=2)}
-                st.success("✅ Loaded 1 test case")
-        except Exception as e:
-            st.error(f"❌ Error loading file: {e}")
+                st.success(f"✅ Loaded 1 test case from {source}")
+            
+            # Clear the input after successful load
+            if source == "pasted text":
+                st.rerun()
 
 # Main content
 if st.session_state.test_cases:
@@ -248,7 +283,7 @@ if st.session_state.test_cases:
 
 else:
     # Welcome screen
-    st.info("👋 **Welcome!** Please upload a JSON file using the sidebar to get started.")
+    st.info("👋 **Welcome!** Please upload a JSON file or paste JSON data using the sidebar to get started.")
     
     st.subheader("✅ **Fixed Issues:**")
     st.markdown("""
@@ -262,11 +297,27 @@ else:
     
     st.subheader("🚀 **How to Use:**")
     st.markdown("""
-    1. **Upload** your JSON file using the sidebar
+    1. **Load Data**: Upload a JSON file OR paste JSON data in the sidebar, then click "Load JSON"
     2. **Edit** test cases using the text areas (changes are automatically tracked)
     3. **Duplicate** rows as blank templates or **add** new blank rows
     4. **Export** cleaned JSON with the "Copy to Clipboard" button
     """)
+    
+    st.subheader("📋 **JSON Format Example:**")
+    st.code('''[
+  {
+    "mhm": {
+      "age": 25,
+      "hgt": 185,
+      "wgt": 77
+    },
+    "smk": {
+      "now": 0,
+      "evr": 0
+    },
+    "clip": false
+  }
+]''', language='json')
 
 # Footer
 st.markdown("---")
